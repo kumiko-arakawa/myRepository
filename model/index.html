@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>数字予測アプリ</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.6.2/css/bulma.min.css">
+</head>
+<body>
+ <div class="container">
+  <div class="columns is-mobile is-multiline is-centered">
+  <div class="column is-narrow">
+	<p class="bd-notification is-info">
+      <code class="accuracy" data-row-index="0">-</code><br>
+      0
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-info">
+      <code class="accuracy" data-row-index="1">-</code><br>
+     1
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-info">
+      <code class="accuracy" data-row-index="2">-</code><br>
+      2
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-info">
+      <code class="accuracy" data-row-index="3">-</code><br>
+      3
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-info">
+      <code class="accuracy" data-row-index="4">-</code><br>
+     4
+    </p>
+  </div>
+  </div>
+	 <div class="columns is-mobile is-multiline is-centered">
+  <div class="column is-narrow">
+    <p class="bd-notification is-primary">
+      <code class="accuracy" data-row-index="5">-</code><br>
+     5
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-primary">
+      <code class="accuracy" data-row-index="6">-</code><br>
+      6
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-primary">
+      <code class="accuracy" data-row-index="7">-</code><br>
+      7
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-primary">
+      <code class="accuracy" data-row-index="8">-</code><br>
+      8
+    </p>
+  </div>
+  <div class="column is-narrow">
+    <p class="bd-notification is-primary">
+      <code class="accuracy" data-row-index="9">-</code><br>
+      9
+    </p>
+  </div>
+ </div>
+</div>	 
+<div class="columns is-centered">
+  　<div class="column is-narrow">
+     <canvas id="draw-area" width=350px height=350px style="border: 2px solid;"></canvas>
+       <div class="field is-grouped">
+        <p class="control">
+            <a id="predict-button" class="button is-success is-loading" onclick="prediction()">
+              予測
+	        </a>
+	    </p>
+        <p class="control">
+            <a class="button is-info" onclick="reset()">
+              消す
+            </a> 
+        </p>
+	
+         <h5 class="title">
+            数字予測アプリ
+         </h5>
+     </div>
+   </div>
+     
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/1.5.3/signature_pad.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.8.0"></script>
+	
+
+	
+	<script>
+	const drawElement = document.getElementById('draw-area');
+    const signaturePad = new SignaturePad(drawElement, {
+       minWidth: 6,
+       maxWidth: 6,
+       penColor: 'white',
+       backgroundColor: 'black',
+    });
+
+    // モデルをロード
+    let model;
+    tf.loadModel('/model/model.json')
+      .then(pretrainedModel => {
+        document.getElementById('predict-button').classList.remove('is-loading');
+        model = pretrainedModel;
+      });
+
+    function getImageData() {
+      const inputWidth = inputHeight = 28;// 学習で使用した画像（28×28）
+
+      // サイズを画面に変更
+      const tmpCanvas = document.createElement('canvas').getContext('2d');
+      tmpCanvas.drawImage(drawElement, 0, 0, inputWidth, inputHeight);
+
+      // ImageDataオブジェクトとして取得し、グレースケール変換
+      let imageData = tmpCanvas.getImageData(0, 0, inputWidth, inputHeight);
+      for (let i = 0; i < imageData.data.length; i+=4) {
+        const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+        imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = avg;
+      }
+
+      return imageData;
+    }
+	
+	function getAccuracyScores(imageData) {
+
+      const score = tf.tidy(() => {
+        // tf.Tensorオブジェクトに変換  
+        const channels = 1; // グレースケール              
+        let input = tf.fromPixels(imageData, channels);
+
+        // 255で割ってあげて0~1に正規化
+        input = tf.cast(input, 'float32').div(tf.scalar(255));
+
+        // 入力形式を変更[batch_size, width, height, channels])
+        input = input.expandDims();
+
+        // 予測する
+        return model.predict(input).dataSync();
+      });
+
+      return score;
+    }
+　　　　　//推論を実行
+    function prediction() {
+      const imageData = getImageData();
+      const accuracyScores = getAccuracyScores(imageData);
+      const maxAccuracy = accuracyScores.indexOf(Math.max.apply(null, accuracyScores));
+
+      const elements = document.querySelectorAll(".accuracy");
+      elements.forEach(el => {
+        el.parentNode.classList.remove('is-selected');
+        const rowIndex = Number(el.dataset.rowIndex);
+        if (maxAccuracy === rowIndex) {
+          el.parentNode.classList.add('is-selected');
+        }
+        el.innerText = accuracyScores[rowIndex];
+      })
+    }
+
+    function reset() {
+      signaturePad.clear();
+      let elements = document.querySelectorAll(".accuracy");
+      elements.forEach(el => {
+        el.parentNode.classList.remove('is-selected');
+        el.innerText = '-';
+      })
+    }
+	</script>
+
+</body>
+</html>
+</html>
