@@ -111,7 +111,7 @@
 
     // モデルをロード
     let model;
-    tf.loadModel("myRepository/model/model.json")
+    tf.loadModel('./model/model.json')
       .then(pretrainedModel => {
         document.getElementById('predict-button').classList.remove('is-loading');
         model = pretrainedModel;
